@@ -1,58 +1,95 @@
-{% extends "base.html" %}
-{% block content %}
-<h2>{{ customer.name }} - Satış Geçmişi</h2>
-<p>
-    Telefon: {{ customer.phone or '-' }}<br>
-    E-posta: {{ customer.email or '-' }}<br>
-    Kayıt Tarihi: {{ customer.created_at }}
-</p>
-<p>
-    Toplam Satış: {{ summary.n_sales }}<br>
-    Toplam Tutar: {{ "%.2f"|format(summary.total_sum) }}
-</p>
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Müşteri Geçmişi</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f7f7f7;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ccc;
+            text-align: left;
+        }
+        th {
+            background: #f0f0f0;
+        }
+        .total-box {
+            padding: 10px;
+            background: #fff;
+            border: 1px solid #ccc;
+            font-weight: bold;
+            width: fit-content;
+        }
+    </style>
+</head>
+<body>
 
-<hr>
+    <h1>{{ customer.name }} - Müşteri Geçmişi</h1>
 
-<h3>Satışlar</h3>
-<table>
-    <tr>
-        <th>ID</th>
-        <th>Tarih</th>
-        <th>Tutar</th>
-        <th>Ödeme</th>
-    </tr>
-    {% for s in sales %}
-    <tr>
-        <td>{{ s.id }}</td>
-        <td>{{ s.ts }}</td>
-        <td>{{ "%.2f"|format(s.total) }}</td>
-        <td>{{ s.payment_method }}</td>
-    </tr>
-    {% endfor %}
-</table>
+    <h2>Satışlar</h2>
+    {% if sales %}
+        <table>
+            <tr>
+                <th>Tarih</th>
+                <th>Ürün</th>
+                <th>Adet</th>
+                <th>Tutar</th>
+            </tr>
+            {% for sale in sales %}
+                {% for item in sale.items %}
+                    <tr>
+                        <td>{{ sale.date }}</td>
+                        <td>{{ item.name }}</td>
+                        <td>{{ item.qty }}</td>
+                        <td>{{ item.total }} ₺</td>
+                    </tr>
+                {% endfor %}
+            {% endfor %}
+        </table>
+    {% else %}
+        <p>Satış kaydı bulunamadı.</p>
+    {% endif %}
 
-<hr>
+    <h2>İadeler / Değişimler</h2>
+    {% if returns %}
+        <table>
+            <tr>
+                <th>Tarih</th>
+                <th>Ürün</th>
+                <th>Adet</th>
+                <th>İade Tutarı</th>
+            </tr>
+            {% for ret in returns %}
+                {% for item in ret.items %}
+                    <tr>
+                        <td>{{ ret.date }}</td>
+                        <td>{{ item.name }}</td>
+                        <td>{{ item.qty }}</td>
+                        <td>{{ item.total }} ₺</td>
+                    </tr>
+                {% endfor %}
+            {% endfor %}
+        </table>
+    {% else %}
+        <p>İade veya değişim kaydı bulunamadı.</p>
+    {% endif %}
 
-<h3>İadeler / Değişimler</h3>
-<table>
-    <tr>
-        <th>ID</th>
-        <th>Tarih</th>
-        <th>Satış ID</th>
-        <th>Net</th>
-        <th>Ödeme</th>
-        <th>Not</th>
-    </tr>
-    {% for r in returns %}
-    <tr>
-        <td>{{ r.id }}</td>
-        <td>{{ r.ts }}</td>
-        <td>{{ r.sale_id }}</td>
-        <td>{{ "%.2f"|format(r.net) }}</td>
-        <td>{{ r.payment_method }}</td>
-        <td>{{ r.notes or '' }}</td>
-    </tr>
-    {% endfor %}
-</table>
+    <div class="total-box">
+        Toplam Alışveriş: {{ total_amount }} ₺
+    </div>
 
-{% endblock %}
+</body>
+</html>
