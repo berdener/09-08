@@ -446,6 +446,7 @@ def api_return():
         return jsonify({'ok': False, 'error': 'Satış bulunamadı'}), 404
 
     db = get_db()
+    # sqlite3.Row => dict benzeri; .get yok, köşeli parantez kullanacağız
     orig_map = {row['id']: row for row in original_items}
 
     # 1) İade toplamı
@@ -458,17 +459,23 @@ def api_return():
             return_subtotal += unit_price * qty
 
     # 2) Değişim toplamı
-    exchange_subtotal = sum(float(it.get('price') or 0) * int(it.get('qty') or 1) for it in exchange_cart)
+    def _f(x): 
+        try: return float(x)
+        except: return 0.0
+    def _i(x): 
+        try: return int(x)
+        except: return 0
+    exchange_subtotal = sum(_f(it.get('price')) * max(1, _i(it.get('qty'))) for it in exchange_cart)
 
-    # 3) Vergi yalnız değişim için; iade negatif etki
+    # 3) Vergi yalnız değişim kısmına; iade negatif etki
     taxable_base = max(exchange_subtotal - return_subtotal, 0.0)
     tax = round(taxable_base * TAX_RATE, 2)
     total = round(taxable_base + tax, 2)
 
     # Net: + tahsil / - iade
     net = round(exchange_subtotal - return_subtotal, 2)
-    refund = max(0.0, round(-net, 2))
-    additional_charge = max(0.0, round(net, 2))
+    refund = max(0.0, round(-net, 2))           # müşteriye iade
+    additional_charge = max(0.0, round(net, 2)) # müşteriden tahsil
 
     # 4) returns kaydı
     db.execute(
@@ -488,9 +495,9 @@ def api_return():
                 'INSERT INTO return_items(return_id, sale_item_id, qty, unit_price) VALUES (?,?,?,?)',
                 (return_id, sid, qty, unit_price)
             )
-            # Shopify stok geri ekle
-            inv_id = orig_map[sid].get('inventory_item_id')
-            if inv_id:
+            # !!! DÜZELTME: sqlite3.Row için .get yerine ['inventory_item_id'] kullan
+            inv_id = orig_map[sid]['inventory_item_id']
+            if inv_id is not None:
                 try:
                     spost(
                         ENV_STORE, ENV_TOKEN,
@@ -533,7 +540,6 @@ def api_return():
             'additional_charge': additional_charge
         }
     })
-
 
 # ----------------------- Root & Errors -----------------------
 @app.route('/')
