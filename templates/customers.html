@@ -1,2 +1,64 @@
-<!doctype html><html lang='tr'><head><meta charset='utf-8'><title>Müşteriler</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:system-ui,Arial;margin:24px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:8px}</style></head><body><h2>Müşteriler</h2><table><tr><th>No</th><th>Ad</th><th>Telefon</th><th>E-posta</th><th>Oluşturulma</th></tr>{% for r in rows %}<tr><td>{{ r.id }}</td><td>{{ r.name or '-' }}</td><td>{{ r.phone or '-' }}</td><td>{{ r.email or '-' }}</td><td>{{ r.created_at }}</td></tr>{% endfor %}{% if rows|length == 0 %}<tr><td colspan='5' style='text-align:center;color:#666'>Kayıt yok.</td></tr>{% endif %}</table><p><a href='/customer'>← Müşteri</a> | <a href='/pos'>Satış</a></p></body></html>
-<a class="button" href="/customer/{{ row.id }}/panel">Panel</a>
+<!doctype html><html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title>Müşteriler</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font-family:system-ui,Arial;margin:16px}
+    table{border-collapse:collapse;width:100%;margin-top:10px}
+    td,th{border:1px solid #ddd;padding:8px;text-align:left}
+    a.button,button{padding:.4rem .6rem;border:1px solid #ccc;border-radius:8px;background:#f8f8f8;cursor:pointer;text-decoration:none;color:#222}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+    input{padding:.4rem;border:1px solid #ccc;border-radius:8px}
+  </style>
+</head>
+<body>
+  <h2>Müşteriler</h2>
+
+  <div class="row">
+    <a class="button" href="/pos">← POS</a>
+    <a class="button" href="/sales">Satışlar</a>
+    <a class="button" href="/reports">Raporlar</a>
+  </div>
+
+  <!-- Basit arama (opsiyonel, backend gerektirmez: tarayıcı filtresi) -->
+  <div class="row">
+    <input id="q" placeholder="Ara (isim/telefon/e-posta)" oninput="filterTable()">
+  </div>
+
+  <table id="tbl">
+    <tr>
+      <th>ID</th>
+      <th>İsim</th>
+      <th>Telefon</th>
+      <th>E-posta</th>
+      <th>Oluşturulma</th>
+      <th>İşlemler</th>
+    </tr>
+    {% for row in rows %}
+    <tr>
+      <td>#{{ row.id }}</td>
+      <td>{{ row.name or '-' }}</td>
+      <td>{{ row.phone or '-' }}</td>
+      <td>{{ row.email or '-' }}</td>
+      <td>{{ row.created_at or '-' }}</td>
+      <td>
+        <a class="button" href="/customer/{{ row.id }}/panel">Panel</a>
+        <a class="button" href="/return/{{ row.id }}">İade/Değişim</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <script>
+    function filterTable(){
+      const q = (document.getElementById('q').value || '').toLowerCase();
+      const rows = document.querySelectorAll('#tbl tr');
+      for(let i=1;i<rows.length;i++){
+        const t = rows[i].innerText.toLowerCase();
+        rows[i].style.display = t.includes(q) ? '' : 'none';
+      }
+    }
+  </script>
+</body>
+</html>
