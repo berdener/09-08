@@ -137,10 +137,14 @@
 <body onload='redraw()'>
   <h2>Satış Ekranı</h2>
 
-  <div style='margin:8px 0; color:#444'>
-    Müşteri: <b>{{ customer.name if customer else '-' }}</b> ({{ customer.phone if customer else '-' }})
-    — <a href='/pos/change_customer'>Değiştir</a>
-  </div>
+<div style='margin:8px 0; color:#444'>
+  Müşteri: <b>{{ customer.name if customer else '-' }}</b> ({{ customer.phone if customer else '-' }})
+  — <a href='/pos/change_customer'>Değiştir</a>
+  {% if customer %}
+    — <a href="/customer/{{ customer.id }}/panel">Panel</a>
+  {% endif %}
+</div>
+
 
   <div class='row gap'>
     <form onsubmit='scan(event)' class='row'>
@@ -176,11 +180,13 @@
 
   <h3>Ödeme</h3>
   <div class='row'>
-    <select id='payment'>
-      <option value='cash'>Nakit</option>
-      <option value='card'>Kart</option>
-      <option value='transfer'>Havale</option>
-    </select>
+   <select id='payment'>
+  <option value='cash'>Nakit</option>
+  <option value='card'>Kart</option>
+  <option value='transfer'>Havale</option>
+  <option value='veresiye'>Veresiye</option>
+</select>
+
     <button onclick='checkout()'>Satışı Tamamla</button>
   </div>
 

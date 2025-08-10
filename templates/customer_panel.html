@@ -1,0 +1,99 @@
+<!doctype html><html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title>Müşteri Paneli (Son 1 Yıl)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font-family:system-ui,Arial;margin:16px}
+    h2,h3{margin:8px 0}
+    table{border-collapse:collapse;width:100%;margin-top:10px}
+    td,th{border:1px solid #ddd;padding:6px;text-align:left}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+    .pill{border:1px solid #eee;padding:8px;border-radius:8px}
+    a.button,button{padding:.4rem .6rem;border:1px solid #ccc;border-radius:8px;background:#f8f8f8;text-decoration:none;color:#222;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="row">
+    <a class="button" href="/customers">← Müşteriler</a>
+    <a class="button" href="/sales">Satışlar</a>
+    <a class="button" href="/pos">POS</a>
+  </div>
+
+  <h2>{{ customer.name or 'Müşteri' }} — Son 1 Yıl Paneli</h2>
+  <div class="row">
+    <div class="pill">Telefon: <b>{{ customer.phone or '-' }}</b></div>
+    <div class="pill">E-posta: <b>{{ customer.email or '-' }}</b></div>
+    <div class="pill">Kayıt: <b>{{ customer.created_at }}</b></div>
+  </div>
+
+  <h3>Özet</h3>
+  <div class="row">
+    <div class="pill">Satış Adedi: <b>{{ summary_sales.n_sales or 0 }}</b></div>
+    <div class="pill">Satış Cirosu: <b>{{ '%.2f'|format(summary_sales.total_sum or 0) }}</b></div>
+    <div class="pill">İade (refund): <b>{{ '%.2f'|format(summary_returns.refund_sum or 0) }}</b></div>
+    <div class="pill">Değişim Tahsil (additional): <b>{{ '%.2f'|format(summary_returns.additional_sum or 0) }}</b></div>
+    <div class="pill">İade Net Etki: <b>{{ '%.2f'|format(summary_returns.net_sum or 0) }}</b></div>
+    <div class="pill">Veresiye Toplamı: <b>{{ '%.2f'|format(summary_veresiye.veresiye_sum or 0) }}</b> ({{ summary_veresiye.veresiye_count or 0 }} işlem)</div>
+  </div>
+
+  <h3>Satışlar (Son 1 Yıl)</h3>
+  <table>
+    <tr><th>ID</th><th>Tarih</th><th>Toplam</th><th>Ödeme</th><th>İşlemler</th></tr>
+    {% for s in sales %}
+    <tr>
+      <td>#{{ s.id }}</td>
+      <td>{{ s.ts }}</td>
+      <td>{{ '%.2f'|format(s.total or 0) }}</td>
+      <td>{{ s.payment_method or '-' }}</td>
+      <td><a class="button" href="/return/{{ s.id }}">İade/Değişim</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h3>Satır Detayları (Son 1 Yıl – Son 200 Kayıt)</h3>
+  <table>
+    <tr><th>Satış</th><th>Ürün</th><th>Adet</th><th>Birim</th><th>Ara Toplam</th></tr>
+    {% for it in sale_items %}
+    <tr>
+      <td><a href="/return/{{ it.sale_id }}">#{{ it.sale_id }}</a></td>
+      <td>{{ it.title }}</td>
+      <td>{{ it.qty }}</td>
+      <td>{{ '%.2f'|format(it.unit_price) }}</td>
+      <td>{{ '%.2f'|format(it.unit_price*it.qty) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h3>İade / Değişim Kayıtları (Son 1 Yıl)</h3>
+  <table>
+    <tr><th>ID</th><th>Tarih</th><th>Satış</th><th>İade</th><th>Tahsil</th><th>Net</th><th>Ödeme</th><th>Not</th><th>Fiş</th></tr>
+    {% for r in returns %}
+    <tr>
+      <td>#{{ r.id }}</td>
+      <td>{{ r.ts }}</td>
+      <td><a href="/return/{{ r.sale_id }}">#{{ r.sale_id }}</a></td>
+      <td>{{ '%.2f'|format(r.refund or 0) }}</td>
+      <td>{{ '%.2f'|format(r.additional_charge or 0) }}</td>
+      <td>{{ '%.2f'|format(r.net or 0) }}</td>
+      <td>{{ r.payment_method or '-' }}</td>
+      <td>{{ r.notes or '' }}</td>
+      <td><a class="button" href="/return/{{ r.id }}/receipt" target="_blank">Yazdır</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h3>Veresiye Satışları (Son 1 Yıl)</h3>
+  <table>
+    <tr><th>ID</th><th>Tarih</th><th>Tutar</th></tr>
+    {% for v in veresiyeler %}
+    <tr>
+      <td>#{{ v.id }}</td>
+      <td>{{ v.ts }}</td>
+      <td>{{ '%.2f'|format(v.total or 0) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+</body>
+</html>

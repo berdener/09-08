@@ -618,3 +618,80 @@ if __name__ == '__main__':
     init_db()
     port = int(os.environ.get('PORT', 5010))
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+@app.route('/customer/<int:cid>/panel')
+@login_required
+def customer_panel(cid):
+    db = get_db()
+    cust = db.execute("SELECT id, name, phone, email, created_at FROM customers WHERE id=?", (cid,)).fetchone()
+    if not cust:
+        flash('Müşteri bulunamadı.', 'error')
+        return redirect(url_for('customers_list'))
+
+    # SON 12 AY
+    sales = db.execute("""
+      SELECT id, ts, total, payment_method
+      FROM sales
+      WHERE customer_id=? AND ts >= datetime('now','localtime','-12 months')
+      ORDER BY id DESC
+    """, (cid,)).fetchall()
+
+    sale_items = db.execute("""
+      SELECT si.sale_id, si.title, si.qty, si.unit_price
+      FROM sale_items si
+      JOIN sales s ON s.id = si.sale_id
+      WHERE s.customer_id=? AND s.ts >= datetime('now','localtime','-12 months')
+      ORDER BY si.id DESC
+    """, (cid,)).fetchall()
+
+    returns = db.execute("""
+      SELECT r.id, r.ts, r.sale_id, r.refund, r.additional_charge, r.net, r.payment_method, r.notes
+      FROM returns r
+      JOIN sales s ON s.id = r.sale_id
+      WHERE s.customer_id=? AND r.ts >= datetime('now','localtime','-12 months')
+      ORDER BY r.id DESC
+    """, (cid,)).fetchall()
+
+    veresiyeler = db.execute("""
+      SELECT id, ts, total
+      FROM sales
+      WHERE customer_id=? 
+        AND ts >= datetime('now','localtime','-12 months') 
+        AND LOWER(COALESCE(payment_method,''))='veresiye'
+      ORDER BY id DESC
+    """, (cid,)).fetchall()
+
+    summary_sales = db.execute("""
+      SELECT COUNT(*) AS n_sales, COALESCE(SUM(total),0) AS total_sum
+      FROM sales
+      WHERE customer_id=? AND ts >= datetime('now','localtime','-12 months')
+    """, (cid,)).fetchone()
+
+    summary_returns = db.execute("""
+      SELECT
+        COALESCE(SUM(refund),0)            AS refund_sum,
+        COALESCE(SUM(additional_charge),0) AS additional_sum,
+        COALESCE(SUM(net),0)               AS net_sum
+      FROM returns r
+      JOIN sales s ON s.id = r.sale_id
+      WHERE s.customer_id=? AND r.ts >= datetime('now','localtime','-12 months')
+    """, (cid,)).fetchone()
+
+    summary_veresiye = db.execute("""
+      SELECT COALESCE(SUM(total),0) AS veresiye_sum, COUNT(*) AS veresiye_count
+      FROM sales
+      WHERE customer_id=? 
+        AND ts >= datetime('now','localtime','-12 months') 
+        AND LOWER(COALESCE(payment_method,''))='veresiye'
+    """, (cid,)).fetchone()
+
+    return render_template(
+        'customer_panel.html',
+        customer=cust,
+        sales=sales,
+        sale_items=sale_items,
+        returns=returns,
+        veresiyeler=veresiyeler,
+        summary_sales=summary_sales,
+        summary_returns=summary_returns,
+        summary_veresiye=summary_veresiye
+    )
