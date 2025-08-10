@@ -4,19 +4,6 @@ import requests
 from dotenv import load_dotenv
 import sqlite3
 
-# sale_date sütunu yoksa ekle
-conn = sqlite3.connect('database.db')  # burada database.db senin veritabanı dosya adın
-cursor = conn.cursor()
-
-# Sütun kontrolü
-cursor.execute("PRAGMA table_info(sales)")
-columns = [col[1] for col in cursor.fetchall()]
-if 'sale_date' not in columns:
-    cursor.execute("ALTER TABLE sales ADD COLUMN sale_date TEXT")
-    conn.commit()
-
-conn.close()
-
 load_dotenv()
 
 APP_SECRET = os.environ.get("APP_SECRET", secrets.token_hex(16))
