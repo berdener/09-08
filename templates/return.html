@@ -93,7 +93,12 @@
       });
 
       const body={ sale_id, payment_method:payment, notes, return_lines, exchange_cart:exCart };
-      const res=await fetch('/api/return',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      const res = await fetch('/api/return', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  credentials: 'same-origin',   // <— BUNU EKLE
+  body: JSON.stringify(body)
+});
       const js=await res.json();
       if(!js.ok){ alert('Hata: '+(js.error||'iade')); return; }
       const s=js.summary||{};

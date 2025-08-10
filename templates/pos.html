@@ -107,11 +107,13 @@
 
       const payload = { cart, payment_method:payment, discount_type, discount_value };
 
-      const res=await fetch('/api/checkout',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(payload)
-      });
+      const res = await fetch('/api/checkout', {
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  credentials: 'same-origin',   // <— BUNU EKLE
+  body: JSON.stringify(payload)
+});
+
       const js=await res.json();
       if(!js.ok){ alert('Hata: '+(js.error||'checkout')); return; }
 
