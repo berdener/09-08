@@ -1,95 +1,68 @@
-<!DOCTYPE html>
-<html lang="tr">
+
+<!doctype html><html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <title>Müşteri Geçmişi</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background: #f7f7f7;
-        }
-        h1 {
-            margin-bottom: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: #fff;
-            margin-bottom: 20px;
-        }
-        th, td {
-            padding: 10px;
-            border: 1px solid #ccc;
-            text-align: left;
-        }
-        th {
-            background: #f0f0f0;
-        }
-        .total-box {
-            padding: 10px;
-            background: #fff;
-            border: 1px solid #ccc;
-            font-weight: bold;
-            width: fit-content;
-        }
-    </style>
+  <meta charset="utf-8">
+  <title>{{ customer.name }} - Müşteri Geçmişi</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font-family:system-ui,Arial;margin:16px;background:#f7f7f7}
+    h2,h3{margin:8px 0}
+    table{border-collapse:collapse;width:100%;margin-top:10px;background:#fff}
+    td,th{border:1px solid #ddd;padding:6px;text-align:left}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+    .pill{border:1px solid #eee;padding:8px;border-radius:8px;background:#fff}
+    a.button{padding:.4rem .6rem;border:1px solid #ccc;border-radius:8px;background:#f8f8f8;text-decoration:none;color:#222}
+  </style>
 </head>
 <body>
+  <div class="row">
+    <a class="button" href="/customers">← Müşteriler</a>
+    <a class="button" href="/sales">Satışlar</a>
+    <a class="button" href="/pos">POS</a>
+  </div>
 
-    <h1>{{ customer.name }} - Müşteri Geçmişi</h1>
+  <h2>{{ customer.name }} — Müşteri Geçmişi</h2>
+  <div class="row">
+    <div class="pill">Telefon: <b>{{ customer.phone or '-' }}</b></div>
+    <div class="pill">E-posta: <b>{{ customer.email or '-' }}</b></div>
+    <div class="pill">Kayıt: <b>{{ customer.created_at }}</b></div>
+  </div>
 
-    <h2>Satışlar</h2>
-    {% if sales %}
-        <table>
-            <tr>
-                <th>Tarih</th>
-                <th>Ürün</th>
-                <th>Adet</th>
-                <th>Tutar</th>
-            </tr>
-            {% for sale in sales %}
-                {% for item in sale.items %}
-                    <tr>
-                        <td>{{ sale.date }}</td>
-                        <td>{{ item.name }}</td>
-                        <td>{{ item.qty }}</td>
-                        <td>{{ item.total }} ₺</td>
-                    </tr>
-                {% endfor %}
-            {% endfor %}
-        </table>
-    {% else %}
-        <p>Satış kaydı bulunamadı.</p>
-    {% endif %}
+  <h3>Özet</h3>
+  <div class="row">
+    <div class="pill">Toplam Satış Adedi: <b>{{ summary.n_sales or 0 }}</b></div>
+    <div class="pill">Toplam Ciro: <b>{{ '%.2f'|format(summary.total_sum or 0) }}</b></div>
+  </div>
 
-    <h2>İadeler / Değişimler</h2>
-    {% if returns %}
-        <table>
-            <tr>
-                <th>Tarih</th>
-                <th>Ürün</th>
-                <th>Adet</th>
-                <th>İade Tutarı</th>
-            </tr>
-            {% for ret in returns %}
-                {% for item in ret.items %}
-                    <tr>
-                        <td>{{ ret.date }}</td>
-                        <td>{{ item.name }}</td>
-                        <td>{{ item.qty }}</td>
-                        <td>{{ item.total }} ₺</td>
-                    </tr>
-                {% endfor %}
-            {% endfor %}
-        </table>
-    {% else %}
-        <p>İade veya değişim kaydı bulunamadı.</p>
-    {% endif %}
+  <h3>Satış Kalemleri</h3>
+  <table>
+    <tr><th>Satış #</th><th>Tarih</th><th>Ürün</th><th>Adet</th><th>Birim</th><th>Ara Toplam</th></tr>
+    {% for r in sale_item_rows %}
+    <tr>
+      <td><a href="/return/{{ r.sale_id }}">#{{ r.sale_id }}</a></td>
+      <td>{{ r.ts }}</td>
+      <td>{{ r.title }}</td>
+      <td>{{ r.qty }}</td>
+      <td>{{ '%.2f'|format(r.unit_price) }}</td>
+      <td>{{ '%.2f'|format((r.unit_price or 0)* (r.qty or 0)) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
 
-    <div class="total-box">
-        Toplam Alışveriş: {{ total_amount }} ₺
-    </div>
-
+  <h3>İade / Değişim Kalemleri</h3>
+  <table>
+    <tr><th>İade #</th><th>Tarih</th><th>Satış #</th><th>Ürün</th><th>Adet</th><th>Birim</th><th>Tutar</th></tr>
+    {% for r in return_item_rows %}
+    <tr>
+      <td>#{{ r.return_id }}</td>
+      <td>{{ r.ts }}</td>
+      <td><a href="/return/{{ r.sale_id }}">#{{ r.sale_id }}</a></td>
+      <td>{{ r.title }}</td>
+      <td>{{ r.qty }}</td>
+      <td>{{ '%.2f'|format(r.unit_price) }}</td>
+      <td>{{ '%.2f'|format((r.unit_price or 0)* (r.qty or 0)) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
 </body>
 </html>

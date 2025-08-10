@@ -620,38 +620,50 @@ def customer_history(cid):
         flash('Müşteri bulunamadı.', 'error')
         return redirect(url_for('customers_list'))
 
+    # Satış başlıkları (opsiyonel; tablo için kalemlerden yürüyeceğiz)
     sales = db.execute("""
       SELECT id, ts, total, payment_method
       FROM sales
       WHERE customer_id=?
       ORDER BY id DESC
+      LIMIT 200
     """, (cid,)).fetchall()
 
-    sale_items = db.execute("""
-      SELECT si.sale_id, si.title, si.qty, si.unit_price
+    # Satış KALemleri (ürün bazında göstereceğiz)
+    sale_item_rows = db.execute("""
+      SELECT s.id AS sale_id, s.ts, si.title, si.qty, si.unit_price
       FROM sale_items si
       JOIN sales s ON s.id = si.sale_id
       WHERE s.customer_id=?
       ORDER BY si.id DESC
+      LIMIT 500
     """, (cid,)).fetchall()
 
-    returns = db.execute("""
-      SELECT r.id, r.ts, r.sale_id, r.refund, r.additional_charge, r.net, r.payment_method, r.notes
-      FROM returns r
-      JOIN sales s ON s.id = r.sale_id
+    # İade/Değişim KALemleri
+    return_item_rows = db.execute("""
+      SELECT r.id AS return_id, r.ts, r.sale_id, si.title, ri.qty, ri.unit_price
+      FROM return_items ri
+      JOIN returns r       ON r.id = ri.return_id
+      JOIN sale_items si   ON si.id = ri.sale_item_id
+      JOIN sales s         ON s.id = si.sale_id
       WHERE s.customer_id=?
-      ORDER BY r.id DESC
+      ORDER BY ri.id DESC
+      LIMIT 500
     """, (cid,)).fetchall()
 
     summary = db.execute("""
-      SELECT COUNT(*) n_sales, COALESCE(SUM(total),0) total_sum
+      SELECT COUNT(*) AS n_sales, COALESCE(SUM(total),0) AS total_sum
       FROM sales WHERE customer_id=?
     """, (cid,)).fetchone()
 
-    return render_template('customer_history.html',
-        customer=cust, sales=sales, sale_items=sale_items,
-        returns=returns, summary=summary)
-
+    return render_template(
+        'customer_history.html',
+        customer=cust,
+        sales=sales,
+        sale_item_rows=sale_item_rows,
+        return_item_rows=return_item_rows,
+        summary=summary
+    )
 
 @app.route('/customer/<int:cid>/panel')
 @login_required
