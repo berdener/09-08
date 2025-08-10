@@ -2,6 +2,20 @@ import os, sqlite3, secrets
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, g
 import requests
 from dotenv import load_dotenv
+import sqlite3
+
+# sale_date sütunu yoksa ekle
+conn = sqlite3.connect('database.db')  # burada database.db senin veritabanı dosya adın
+cursor = conn.cursor()
+
+# Sütun kontrolü
+cursor.execute("PRAGMA table_info(sales)")
+columns = [col[1] for col in cursor.fetchall()]
+if 'sale_date' not in columns:
+    cursor.execute("ALTER TABLE sales ADD COLUMN sale_date TEXT")
+    conn.commit()
+
+conn.close()
 
 load_dotenv()
 
