@@ -117,8 +117,8 @@
       alert('Satış tamamlandı. No: '+js.sale_id+'  Toplam: '+js.total.toFixed(2)+
             (js.discount ? ('\nİndirim: '+js.discount.toFixed(2)) : ''));
 
-      // Temizle
-      cart=[]; document.getElementById('discount_percent').value='';
+      cart=[];
+      document.getElementById('discount_percent').value='';
       document.getElementById('discount_amount').value='';
       redraw();
     }
