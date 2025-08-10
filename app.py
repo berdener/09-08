@@ -660,7 +660,8 @@ def customer_history(customer_id):
 @login_required
 def customer_panel(cid):
     # Paneli history sayfasına yönlendirme
-    return redirect(url_for('customer_history', cid=cid))
+    return redirect(url_for('customer_history', customer_id=cid))
+
 
 
 # ----------------------- Main -----------------------
