@@ -611,6 +611,53 @@ def root():
 @app.errorhandler(404)
 def nf(e):
     return '<div style="font-family:system-ui,Arial;padding:24px"><h3>Sayfa bulunamadı</h3><p>Müşteri: <a href="/customer">/customer</a> | POS: <a href="/pos">/pos</a> | Stok: <a href="/inventory">/inventory</a></p></div>', 404
+@app.route('/customer/<int:cid>/history')
+@login_required
+def customer_history(cid):
+    db = get_db()
+    cust = db.execute("SELECT id,name,phone,email,created_at FROM customers WHERE id=?", (cid,)).fetchone()
+    if not cust:
+        flash('Müşteri bulunamadı.', 'error')
+        return redirect(url_for('customers_list'))
+
+    sales = db.execute("""
+      SELECT id, ts, total, payment_method
+      FROM sales
+      WHERE customer_id=?
+      ORDER BY id DESC
+    """, (cid,)).fetchall()
+
+    sale_items = db.execute("""
+      SELECT si.sale_id, si.title, si.qty, si.unit_price
+      FROM sale_items si
+      JOIN sales s ON s.id = si.sale_id
+      WHERE s.customer_id=?
+      ORDER BY si.id DESC
+    """, (cid,)).fetchall()
+
+    returns = db.execute("""
+      SELECT r.id, r.ts, r.sale_id, r.refund, r.additional_charge, r.net, r.payment_method, r.notes
+      FROM returns r
+      JOIN sales s ON s.id = r.sale_id
+      WHERE s.customer_id=?
+      ORDER BY r.id DESC
+    """, (cid,)).fetchall()
+
+    summary = db.execute("""
+      SELECT COUNT(*) n_sales, COALESCE(SUM(total),0) total_sum
+      FROM sales WHERE customer_id=?
+    """, (cid,)).fetchone()
+
+    return render_template('customer_history.html',
+        customer=cust, sales=sales, sale_items=sale_items,
+        returns=returns, summary=summary)
+
+
+@app.route('/customer/<int:cid>/panel')
+@login_required
+def customer_panel(cid):
+    # Paneli history sayfasına yönlendirme
+    return redirect(url_for('customer_history', cid=cid))
 
 
 # ----------------------- Main -----------------------

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{{ customer.name }} - Satış Geçmişi</h2>
+<p>
+    Telefon: {{ customer.phone or '-' }}<br>
+    E-posta: {{ customer.email or '-' }}<br>
+    Kayıt Tarihi: {{ customer.created_at }}
+</p>
+<p>
+    Toplam Satış: {{ summary.n_sales }}<br>
+    Toplam Tutar: {{ "%.2f"|format(summary.total_sum) }}
+</p>
+
+<hr>
+
+<h3>Satışlar</h3>
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Tarih</th>
+        <th>Tutar</th>
+        <th>Ödeme</th>
+    </tr>
+    {% for s in sales %}
+    <tr>
+        <td>{{ s.id }}</td>
+        <td>{{ s.ts }}</td>
+        <td>{{ "%.2f"|format(s.total) }}</td>
+        <td>{{ s.payment_method }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<hr>
+
+<h3>İadeler / Değişimler</h3>
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Tarih</th>
+        <th>Satış ID</th>
+        <th>Net</th>
+        <th>Ödeme</th>
+        <th>Not</th>
+    </tr>
+    {% for r in returns %}
+    <tr>
+        <td>{{ r.id }}</td>
+        <td>{{ r.ts }}</td>
+        <td>{{ r.sale_id }}</td>
+        <td>{{ "%.2f"|format(r.net) }}</td>
+        <td>{{ r.payment_method }}</td>
+        <td>{{ r.notes or '' }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}
