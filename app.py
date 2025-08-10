@@ -394,11 +394,41 @@ def reports():
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     db = get_db()
-    daily = db.execute("SELECT date(ts) d, SUM(total) t FROM sales WHERE date(ts)=date('now','localtime') GROUP BY d").fetchone()
-    monthly = db.execute("SELECT strftime('%Y-%m', ts) m, SUM(total) t FROM sales WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime') GROUP BY m").fetchone()
-    return render_template('reports.html',
-                           daily_total=(daily['t'] if daily and daily['t'] else 0),
-                           monthly_total=(monthly['t'] if monthly and monthly['t'] else 0))
+
+    # Mevcut satış toplamları
+    daily = db.execute(
+        "SELECT date(ts) d, SUM(total) t FROM sales WHERE date(ts)=date('now','localtime') GROUP BY d"
+    ).fetchone()
+    monthly = db.execute(
+        "SELECT strftime('%Y-%m', ts) m, SUM(total) t FROM sales WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime') GROUP BY m"
+    ).fetchone()
+
+    # İade özetleri (returns tablosundan)
+    ret_today = db.execute("""
+      SELECT 
+        COALESCE(SUM(refund),0)           AS refund,
+        COALESCE(SUM(additional_charge),0) AS additional,
+        COALESCE(SUM(net),0)              AS net
+      FROM returns
+      WHERE date(ts)=date('now','localtime')
+    """).fetchone()
+
+    ret_month = db.execute("""
+      SELECT 
+        COALESCE(SUM(refund),0)           AS refund,
+        COALESCE(SUM(additional_charge),0) AS additional,
+        COALESCE(SUM(net),0)              AS net
+      FROM returns
+      WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
+    """).fetchone()
+
+    return render_template(
+        'reports.html',
+        daily_total=(daily['t'] if daily and daily['t'] else 0),
+        monthly_total=(monthly['t'] if monthly and monthly['t'] else 0),
+        returns_today=ret_today,
+        returns_month=ret_month
+    )
 
 @app.route('/sales')
 def sales_list():
@@ -406,6 +436,38 @@ def sales_list():
         return redirect(url_for('login'))
     rows = get_db().execute('SELECT id, ts, total, payment_method FROM sales ORDER BY id DESC LIMIT 200').fetchall()
     return render_template('sales.html', rows=rows)
+@app.route('/returns')
+def returns_list():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    rows = get_db().execute("""
+      SELECT id, ts, sale_id, refund, additional_charge, net, payment_method, notes
+      FROM returns
+      ORDER BY id DESC
+      LIMIT 500
+    """).fetchall()
+    return render_template('returns.html', rows=rows)
+
+@app.route('/returns.csv')
+def returns_csv():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    import csv, io
+    db = get_db()
+    rows = db.execute("""
+      SELECT id, ts, sale_id, refund, additional_charge, net, payment_method, notes
+      FROM returns
+      ORDER BY id DESC
+      LIMIT 10000
+    """).fetchall()
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(['id','ts','sale_id','refund','additional_charge','net','payment_method','notes'])
+    for r in rows:
+        w.writerow([r['id'], r['ts'], r['sale_id'], r['refund'], r['additional_charge'], r['net'], r['payment_method'], r['notes']])
+    from flask import Response
+    return Response(buf.getvalue(), mimetype='text/csv',
+                    headers={'Content-Disposition': 'attachment; filename=returns.csv'})
 
 @app.route('/customers')
 def customers_list():

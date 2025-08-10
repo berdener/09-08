@@ -1,1 +1,16 @@
 <!doctype html><html lang='tr'><head><meta charset='utf-8'><title>Raporlar</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:system-ui,Arial;margin:24px}.card{border:1px solid #ddd;border-radius:12px;padding:16px;margin-bottom:16px}</style></head><body><h2>Raporlar</h2><div class='card'><b>Günlük Ciro:</b> {{ '%.2f'|format(daily_total) }}</div><div class='card'><b>Aylık Ciro:</b> {{ '%.2f'|format(monthly_total) }}</div><p><a href='/customer'>← Müşteri</a> | <a href='/pos'>Satış</a> | <a href='/inventory'>Stok</a></p></body></html>
+<h3>İade Özeti</h3>
+<div style="display:flex;gap:16px;flex-wrap:wrap">
+  <div style="border:1px solid #eee;padding:10px;border-radius:8px">
+    <div><b>Bugün</b></div>
+    <div>Refund: {{ '%.2f'|format((returns_today.refund or 0) if returns_today else 0) }}</div>
+    <div>Tahsil: {{ '%.2f'|format((returns_today.additional or 0) if returns_today else 0) }}</div>
+    <div>Net: {{ '%.2f'|format((returns_today.net or 0) if returns_today else 0) }}</div>
+  </div>
+  <div style="border:1px solid #eee;padding:10px;border-radius:8px">
+    <div><b>Bu Ay</b></div>
+    <div>Refund: {{ '%.2f'|format((returns_month.refund or 0) if returns_month else 0) }}</div>
+    <div>Tahsil: {{ '%.2f'|format((returns_month.additional or 0) if returns_month else 0) }}</div>
+    <div>Net: {{ '%.2f'|format((returns_month.net or 0) if returns_month else 0) }}</div>
+  </div>
+</div>

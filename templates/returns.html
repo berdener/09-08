@@ -1,0 +1,49 @@
+
+<!doctype html><html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title>İade Listesi</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font-family:system-ui,Arial;margin:16px}
+    table{border-collapse:collapse;width:100%;margin-top:10px}
+    td,th{border:1px solid #ddd;padding:8px;text-align:left}
+    a.button,button{padding:.4rem .6rem;border:1px solid #ccc;border-radius:8px;background:#f8f8f8;cursor:pointer;text-decoration:none;color:#222}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  </style>
+</head>
+<body>
+  <h2>İade Kayıtları</h2>
+  <div class="row">
+    <a class="button" href="/sales">← Satışlar</a>
+    <a class="button" href="/returns.csv">CSV indir</a>
+  </div>
+
+  <table>
+    <tr>
+      <th>ID</th>
+      <th>Tarih</th>
+      <th>Satış</th>
+      <th>İade (Refund)</th>
+      <th>Tahsil (Additional)</th>
+      <th>Net</th>
+      <th>Ödeme</th>
+      <th>Not</th>
+      <th>İşlem</th>
+    </tr>
+    {% for r in rows %}
+    <tr>
+      <td>#{{ r.id }}</td>
+      <td>{{ r.ts }}</td>
+      <td><a href="/return/{{ r.sale_id }}">#{{ r.sale_id }}</a></td>
+      <td>{{ '%.2f'|format(r.refund or 0) }}</td>
+      <td>{{ '%.2f'|format(r.additional_charge or 0) }}</td>
+      <td>{{ '%.2f'|format(r.net or 0) }}</td>
+      <td>{{ r.payment_method or '-' }}</td>
+      <td>{{ r.notes or '' }}</td>
+      <td><a class="button" href="/return/{{ r.sale_id }}">İade/Değişim</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</body>
+</html>
