@@ -133,23 +133,90 @@ def api_scan():
     return jsonify({'ok':True,'variant':{'id':v.get('id'),'title':v.get('title'),'product_title':product_title,'sku':v.get('sku'),'barcode':v.get('barcode'),'inventory_item_id':v.get('inventory_item_id'),'price':price}})
 @app.route('/api/checkout', methods=['POST'])
 def api_checkout():
-    if not session.get('logged_in'): return jsonify({'ok':False,'error':'Auth'}),401
-    if not session.get('customer_id'): return jsonify({'ok':False,'error':'Müşteri seçilmedi'}),400
-    body=request.get_json(silent=True) or {}
-    cart=body.get('cart', [])
-    payment=body.get('payment_method') or 'cash'
-    if not cart: return jsonify({'ok':False,'error':'Sepet boş'}),400
-    db=get_db(); cust_id=int(session['customer_id'])
-    subtotal=sum(float(i.get('price') or 0)*int(i.get('qty') or 1) for i in cart)
-    tax=round(subtotal*TAX_RATE,2); total=round(subtotal+tax,2)
-    db.execute('INSERT INTO sales(customer_id,subtotal,tax,total,payment_method) VALUES (?,?,?,?,?)',(cust_id,subtotal,tax,total,payment)); db.commit()
-    sale_id=db.execute('SELECT last_insert_rowid()').fetchone()[0]
-    for it in cart: db.execute('INSERT INTO sale_items(sale_id,variant_id,inventory_item_id,sku,barcode,title,qty,unit_price) VALUES (?,?,?,?,?,?,?,?)',(sale_id,it['id'],it.get('inventory_item_id'),it.get('sku'),it.get('barcode'),it.get('title'),int(it.get('qty') or 1),float(it.get('price') or 0)))
+    if not session.get('logged_in'):
+        return jsonify({'ok': False, 'error': 'Auth'}), 401
+    if not session.get('customer_id'):
+        return jsonify({'ok': False, 'error': 'Müşteri seçilmedi'}), 400
+
+    body = request.get_json(silent=True) or {}
+    cart = body.get('cart', [])
+    payment = body.get('payment_method') or 'cash'
+    if not cart:
+        return jsonify({'ok': False, 'error': 'Sepet boş'}), 400
+
+    # 1) Ara Toplam
+    subtotal = sum(float(i.get('price') or 0) * int(i.get('qty') or 1) for i in cart)
+
+    # 2) İndirim (öncelik: percent > amount)
+    discount_type = body.get('discount_type')
+    discount_value = float(body.get('discount_value') or 0.0)
+    discount = 0.0
+    if discount_type == 'percent' and discount_value > 0:
+        discount = subtotal * (discount_value / 100.0)
+    elif discount_type == 'amount' and discount_value > 0:
+        discount = min(discount_value, subtotal)
+    discount = round(discount, 2)
+
+    # 3) Vergi (indirimin ardından, vergiden önceki tutar üzerinden)
+    taxable_base = max(subtotal - discount, 0.0)
+    tax = round(taxable_base * TAX_RATE, 2)
+    total = round(taxable_base + tax, 2)
+
+    db = get_db()
+    cust_id = int(session['customer_id'])
+
+    # 4) Satış başlığı kaydı (mevcut tabloyu bozmayalım)
+    db.execute(
+        'INSERT INTO sales(customer_id, subtotal, tax, total, payment_method) VALUES (?,?,?,?,?)',
+        (cust_id, subtotal, tax, total, payment)
+    )
     db.commit()
+    sale_id = db.execute('SELECT last_insert_rowid()').fetchone()[0]
+
+    # 5) Satırları yaz
     for it in cart:
-        try: spost(ENV_STORE, ENV_TOKEN, 'inventory_levels/adjust.json', {'inventory_item_id': int(it['inventory_item_id']), 'location_id': int(ENV_LOCATION or 0), 'available_adjustment': -int(it.get('qty') or 1)})
-        except Exception: pass
-    return jsonify({'ok':True,'sale_id':sale_id,'total':total})
+        db.execute(
+            'INSERT INTO sale_items(sale_id, variant_id, inventory_item_id, sku, barcode, title, qty, unit_price) VALUES (?,?,?,?,?,?,?,?)',
+            (
+                sale_id,
+                it['id'],
+                it.get('inventory_item_id'),
+                it.get('sku'),
+                it.get('barcode'),
+                it.get('title'),
+                int(it.get('qty') or 1),
+                float(it.get('price') or 0)
+            )
+        )
+    db.commit()
+
+    # 6) Shopify stok düş (varsa)
+    for it in cart:
+        try:
+            spost(
+                ENV_STORE, ENV_TOKEN,
+                'inventory_levels/adjust.json',
+                {
+                    'inventory_item_id': int(it['inventory_item_id']),
+                    'location_id': int(ENV_LOCATION or 0),
+                    'available_adjustment': -int(it.get('qty') or 1)
+                }
+            )
+        except Exception:
+            pass
+
+    # 7) Cevap
+    return jsonify({
+        'ok': True,
+        'sale_id': sale_id,
+        'total': total,
+        'tax': tax,
+        'subtotal': subtotal,
+        'discount': discount,
+        'discount_type': discount_type,
+        'discount_value': discount_value
+    })
+
 def fetch_all_variants(store, token, page_size=250, limit_pages=8):
     results=[]; since_id=None
     for _ in range(limit_pages):

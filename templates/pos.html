@@ -1,1 +1,186 @@
-<!doctype html><html lang='tr'><head><meta charset='utf-8'><title>Satış Ekranı</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:system-ui,Arial;margin:16px}input,button{padding:.5rem;border:1px solid #ccc;border-radius:8px}table{border-collapse:collapse;width:100%;margin-top:10px}td,th{border:1px solid #ddd;padding:6px;text-align:left}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}</style><script>let cart=[];function redraw(){const tb=document.getElementById('tbody');tb.innerHTML='';let sub=0;for(let i=0;i<cart.length;i++){const it=cart[i];sub+=it.qty*it.price;tb.insertAdjacentHTML('beforeend',`<tr><td>${it.title}</td><td>${it.sku||''}</td><td>${it.barcode||''}</td><td><input type='number' min='1' value='${it.qty}' onchange='chg(${i}, this.value)'></td><td>${it.price.toFixed(2)}</td><td>${(it.qty*it.price).toFixed(2)}</td><td><button onclick='delIt(${i})'>Sil</button></td></tr>`);}const rate=parseFloat(document.getElementById('tax_rate').value||'0');const tax=(sub*rate)||0;document.getElementById('subtotal').innerText=sub.toFixed(2);document.getElementById('tax').innerText=tax.toFixed(2);document.getElementById('total').innerText=(sub+tax).toFixed(2);}function chg(i,v){cart[i].qty=parseInt(v||'1',10);redraw();}function delIt(i){cart.splice(i,1);redraw();}async function scan(e){e&&e.preventDefault();const code=document.getElementById('code').value.trim();const qty=parseInt(document.getElementById('qty').value||'1',10);if(!code)return;const res=await fetch('/api/scan?code='+encodeURIComponent(code));const js=await res.json();if(!js.ok){alert(js.error||'Bulunamadı');return}const v=js.variant;const ex=cart.find(x=>x.id===v.id);if(ex){ex.qty+=qty}else{cart.push({id:v.id,title:(v.product_title||'')+' / '+(v.title||''),sku:v.sku,barcode:v.barcode,inventory_item_id:v.inventory_item_id,price:parseFloat(v.price||0),qty:qty});}document.getElementById('code').value='';document.getElementById('qty').value='1';redraw();}async function checkout(){if(cart.length===0){alert('Sepet boş');return}const payment=document.getElementById('payment').value;const res=await fetch('/api/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cart,payment_method:payment})});const js=await res.json();if(!js.ok){alert('Hata: '+(js.error||'checkout'));return}alert('Satış tamamlandı. No: '+js.sale_id+'  Toplam: '+js.total.toFixed(2));cart=[];redraw();}</script></head><body onload='redraw()'><h2>Satış Ekranı</h2><div style='margin:8px 0; color:#444'>Müşteri: <b>{{ customer.name if customer else '-' }}</b> ({{ customer.phone if customer else '-' }}) — <a href='/pos/change_customer'>Değiştir</a></div><div class='row'><form onsubmit='scan(event)' class='row'><input id='code' placeholder='Barkod' autofocus onkeydown="if(event.key==='Enter'){scan(event)}"><input id='qty' type='number' min='1' value='1'><button type='submit'>Ekle</button></form><div>Vergi oranı: <input id='tax_rate' type='number' step='0.01' value='{{ tax_rate or 0 }}'> (örn. 0.18)</div></div><table><tr><th>Ürün</th><th>SKU</th><th>Barkod</th><th>Adet</th><th>Birim</th><th>Ara Toplam</th><th></th></tr><tbody id='tbody'></tbody><tfoot><tr><td colspan='5' style='text-align:right'>Ara Toplam</td><td id='subtotal'>0.00</td><td></td></tr><tr><td colspan='5' style='text-align:right'>Vergi</td><td id='tax'>0.00</td><td></td></tr><tr><td colspan='5' style='text-align:right'><b>Toplam</b></td><td id='total'><b>0.00</b></td><td></td></tr></tfoot></table><h3>Ödeme</h3><div class='row'><select id='payment'><option value='cash'>Nakit</option><option value='card'>Kart</option><option value='transfer'>Havale</option></select><button onclick='checkout()'>Satışı Tamamla</button></div><p><a href='/inventory'>Stok Listesi</a> | <a href='/reports'>Raporlar</a> | <a href='/sales'>Satışlar</a> | <a href='/customers'>Müşteriler</a></p></body></html>
+<!doctype html><html lang='tr'>
+<head>
+  <meta charset='utf-8'>
+  <title>Satış Ekranı</title>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <style>
+    body{font-family:system-ui,Arial;margin:16px}
+    input,button,select{padding:.5rem;border:1px solid #ccc;border-radius:8px}
+    table{border-collapse:collapse;width:100%;margin-top:10px}
+    td,th{border:1px solid #ddd;padding:6px;text-align:left}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .gap{gap:12px}
+    .note{color:#666;font-size:.9rem}
+  </style>
+  <script>
+    let cart=[];
+
+    function getNumber(id){
+      const v = (document.getElementById(id)?.value || '').replace(',', '.');
+      const n = parseFloat(v);
+      return isNaN(n) ? 0 : n;
+    }
+
+    function redraw(){
+      const tb=document.getElementById('tbody');
+      tb.innerHTML='';
+      let sub=0;
+      for(let i=0;i<cart.length;i++){
+        const it=cart[i];
+        sub+=it.qty*it.price;
+        tb.insertAdjacentHTML('beforeend',
+          `<tr>
+            <td>${it.title}</td>
+            <td>${it.sku||''}</td>
+            <td>${it.barcode||''}</td>
+            <td><input type='number' min='1' value='${it.qty}' onchange='chg(${i}, this.value)'></td>
+            <td>${it.price.toFixed(2)}</td>
+            <td>${(it.qty*it.price).toFixed(2)}</td>
+            <td><button onclick='delIt(${i})'>Sil</button></td>
+          </tr>`);
+      }
+
+      // İndirim hesapla (öncelik: yüzde > tutar)
+      const discPercent = getNumber('discount_percent');   // ör. 10 => %10
+      const discAmount  = getNumber('discount_amount');    // TL
+      let discount = 0;
+      if (discPercent > 0){
+        discount = sub * (discPercent/100);
+      } else if (discAmount > 0){
+        discount = Math.min(discAmount, sub);
+      }
+      const taxableBase = Math.max(sub - discount, 0);
+
+      const rate=getNumber('tax_rate');      // ör. 0.18
+      const tax=(taxableBase*rate)||0;
+      const total = taxableBase + tax;
+
+      document.getElementById('subtotal').innerText=sub.toFixed(2);
+      document.getElementById('discount').innerText=discount.toFixed(2);
+      document.getElementById('taxable_base').innerText=taxableBase.toFixed(2);
+      document.getElementById('tax').innerText=tax.toFixed(2);
+      document.getElementById('total').innerText=total.toFixed(2);
+    }
+
+    function chg(i,v){ cart[i].qty=parseInt(v||'1',10); redraw(); }
+    function delIt(i){ cart.splice(i,1); redraw(); }
+
+    async function scan(e){
+      e&&e.preventDefault();
+      const code=document.getElementById('code').value.trim();
+      const qty=parseInt(document.getElementById('qty').value||'1',10);
+      if(!code)return;
+      const res=await fetch('/api/scan?code='+encodeURIComponent(code));
+      const js=await res.json();
+      if(!js.ok){ alert(js.error||'Bulunamadı'); return; }
+      const v=js.variant;
+      const ex=cart.find(x=>x.id===v.id);
+      if(ex){ ex.qty+=qty; }
+      else{
+        cart.push({
+          id:v.id,
+          title:(v.product_title||'')+' / '+(v.title||''),
+          sku:v.sku,
+          barcode:v.barcode,
+          inventory_item_id:v.inventory_item_id,
+          price:parseFloat(v.price||0),
+          qty:qty
+        });
+      }
+      document.getElementById('code').value='';
+      document.getElementById('qty').value='1';
+      redraw();
+    }
+
+    async function checkout(){
+      if(cart.length===0){ alert('Sepet boş'); return; }
+      const payment=document.getElementById('payment').value;
+
+      // İndirim tipini belirle
+      const discPercent = getNumber('discount_percent');
+      const discAmount  = getNumber('discount_amount');
+
+      let discount_type = null, discount_value = 0;
+      if (discPercent > 0){ discount_type='percent'; discount_value=discPercent; }
+      else if (discAmount > 0){ discount_type='amount'; discount_value=discAmount; }
+
+      const payload = { cart, payment_method:payment, discount_type, discount_value };
+
+      const res=await fetch('/api/checkout',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)
+      });
+      const js=await res.json();
+      if(!js.ok){ alert('Hata: '+(js.error||'checkout')); return; }
+
+      alert('Satış tamamlandı. No: '+js.sale_id+'  Toplam: '+js.total.toFixed(2)+
+            (js.discount ? ('\nİndirim: '+js.discount.toFixed(2)) : ''));
+
+      // Temizle
+      cart=[]; document.getElementById('discount_percent').value='';
+      document.getElementById('discount_amount').value='';
+      redraw();
+    }
+  </script>
+</head>
+<body onload='redraw()'>
+  <h2>Satış Ekranı</h2>
+
+  <div style='margin:8px 0; color:#444'>
+    Müşteri: <b>{{ customer.name if customer else '-' }}</b> ({{ customer.phone if customer else '-' }})
+    — <a href='/pos/change_customer'>Değiştir</a>
+  </div>
+
+  <div class='row gap'>
+    <form onsubmit='scan(event)' class='row'>
+      <input id='code' placeholder='Barkod' autofocus onkeydown="if(event.key==='Enter'){scan(event)}">
+      <input id='qty' type='number' min='1' value='1'>
+      <button type='submit'>Ekle</button>
+    </form>
+
+    <div>Vergi oranı:
+      <input id='tax_rate' type='number' step='0.01' value='{{ tax_rate or 0 }}' oninput="redraw()"> (örn. 0.18)
+    </div>
+
+    <div>Yüzdesel İndirim (%):
+      <input id='discount_percent' type='number' step='0.01' placeholder='örn. 10' oninput="redraw()">
+    </div>
+
+    <div>Tutar Bazlı İndirim (₺):
+      <input id='discount_amount' type='number' step='0.01' placeholder='örn. 100' oninput="redraw()">
+    </div>
+  </div>
+
+  <table>
+    <tr><th>Ürün</th><th>SKU</th><th>Barkod</th><th>Adet</th><th>Birim</th><th>Ara Toplam</th><th></th></tr>
+    <tbody id='tbody'></tbody>
+    <tfoot>
+      <tr><td colspan='5' style='text-align:right'>Ara Toplam</td><td id='subtotal'>0.00</td><td></td></tr>
+      <tr><td colspan='5' style='text-align:right'>İndirim</td><td id='discount'>0.00</td><td></td></tr>
+      <tr><td colspan='5' style='text-align:right'>Vergi Öncesi Tutar</td><td id='taxable_base'>0.00</td><td></td></tr>
+      <tr><td colspan='5' style='text-align:right'>Vergi</td><td id='tax'>0.00</td><td></td></tr>
+      <tr><td colspan='5' style='text-align:right'><b>Toplam</b></td><td id='total'><b>0.00</b></td><td></td></tr>
+    </tfoot>
+  </table>
+
+  <h3>Ödeme</h3>
+  <div class='row'>
+    <select id='payment'>
+      <option value='cash'>Nakit</option>
+      <option value='card'>Kart</option>
+      <option value='transfer'>Havale</option>
+    </select>
+    <button onclick='checkout()'>Satışı Tamamla</button>
+  </div>
+
+  <p class="note">
+    Not: Yüzde girilirse yüzdesel indirim uygulanır; aksi halde tutar bazlı indirim dikkate alınır.
+  </p>
+
+  <p>
+    <a href='/inventory'>Stok Listesi</a> | <a href='/reports'>Raporlar</a> |
+    <a href='/sales'>Satışlar</a> | <a href='/customers'>Müşteriler</a>
+  </p>
+</body>
+</html>
