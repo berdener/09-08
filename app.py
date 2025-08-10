@@ -390,44 +390,44 @@ def inventory():
     return render_template('inventory.html', variants=variants)
 
 @app.route('/reports')
+@login_required
 def reports():
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
     db = get_db()
 
-    # Mevcut satış toplamları
-    daily = db.execute(
-        "SELECT date(ts) d, SUM(total) t FROM sales WHERE date(ts)=date('now','localtime') GROUP BY d"
-    ).fetchone()
-    monthly = db.execute(
-        "SELECT strftime('%Y-%m', ts) m, SUM(total) t FROM sales WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime') GROUP BY m"
-    ).fetchone()
+    # Günlük veriler
+    today = datetime.now().date()
+    daily_sales = db.execute("""
+        SELECT SUM(total_amount) 
+        FROM sales 
+        WHERE DATE(sale_date) = ? AND payment_type != 'Veresiye'
+    """, (today,)).fetchone()[0] or 0
 
-    # İade özetleri (returns tablosundan)
-    ret_today = db.execute("""
-      SELECT 
-        COALESCE(SUM(refund),0)           AS refund,
-        COALESCE(SUM(additional_charge),0) AS additional,
-        COALESCE(SUM(net),0)              AS net
-      FROM returns
-      WHERE date(ts)=date('now','localtime')
-    """).fetchone()
+    daily_credit = db.execute("""
+        SELECT SUM(total_amount) 
+        FROM sales 
+        WHERE DATE(sale_date) = ? AND payment_type = 'Veresiye'
+    """, (today,)).fetchone()[0] or 0
 
-    ret_month = db.execute("""
-      SELECT 
-        COALESCE(SUM(refund),0)           AS refund,
-        COALESCE(SUM(additional_charge),0) AS additional,
-        COALESCE(SUM(net),0)              AS net
-      FROM returns
-      WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
-    """).fetchone()
+    # Aylık veriler
+    first_day_month = today.replace(day=1)
+    monthly_sales = db.execute("""
+        SELECT SUM(total_amount) 
+        FROM sales 
+        WHERE DATE(sale_date) >= ? AND payment_type != 'Veresiye'
+    """, (first_day_month,)).fetchone()[0] or 0
+
+    monthly_credit = db.execute("""
+        SELECT SUM(total_amount) 
+        FROM sales 
+        WHERE DATE(sale_date) >= ? AND payment_type = 'Veresiye'
+    """, (first_day_month,)).fetchone()[0] or 0
 
     return render_template(
         'reports.html',
-        daily_total=(daily['t'] if daily and daily['t'] else 0),
-        monthly_total=(monthly['t'] if monthly and monthly['t'] else 0),
-        returns_today=ret_today,
-        returns_month=ret_month
+        daily_sales=daily_sales,
+        daily_credit=daily_credit,
+        monthly_sales=monthly_sales,
+        monthly_credit=monthly_credit
     )
 
 @app.route('/sales')
@@ -611,58 +611,49 @@ def root():
 @app.errorhandler(404)
 def nf(e):
     return '<div style="font-family:system-ui,Arial;padding:24px"><h3>Sayfa bulunamadı</h3><p>Müşteri: <a href="/customer">/customer</a> | POS: <a href="/pos">/pos</a> | Stok: <a href="/inventory">/inventory</a></p></div>', 404
-@app.route('/customer/<int:cid>/history')
+@app.route('/customer/<int:customer_id>/history')
 @login_required
-def customer_history(cid):
+def customer_history(customer_id):
     db = get_db()
-    cust = db.execute("SELECT id,name,phone,email,created_at FROM customers WHERE id=?", (cid,)).fetchone()
-    if not cust:
-        flash('Müşteri bulunamadı.', 'error')
-        return redirect(url_for('customers_list'))
 
-    # Satış başlıkları (opsiyonel; tablo için kalemlerden yürüyeceğiz)
+    # Müşteri bilgisi
+    customer = db.execute("""
+        SELECT * FROM customers WHERE id = ?
+    """, (customer_id,)).fetchone()
+
+    if not customer:
+        flash("Müşteri bulunamadı.", "danger")
+        return redirect(url_for('customers'))
+
+    # Müşterinin satışları
     sales = db.execute("""
-      SELECT id, ts, total, payment_method
-      FROM sales
-      WHERE customer_id=?
-      ORDER BY id DESC
-      LIMIT 200
-    """, (cid,)).fetchall()
+        SELECT * FROM sales
+        WHERE customer_id = ?
+        ORDER BY sale_date DESC
+    """, (customer_id,)).fetchall()
 
-    # Satış KALemleri (ürün bazında göstereceğiz)
-    sale_item_rows = db.execute("""
-      SELECT s.id AS sale_id, s.ts, si.title, si.qty, si.unit_price
-      FROM sale_items si
-      JOIN sales s ON s.id = si.sale_id
-      WHERE s.customer_id=?
-      ORDER BY si.id DESC
-      LIMIT 500
-    """, (cid,)).fetchall()
+    # Müşterinin iadeleri
+    returns = db.execute("""
+        SELECT * FROM returns
+        WHERE customer_id = ?
+        ORDER BY return_date DESC
+    """, (customer_id,)).fetchall()
 
-    # İade/Değişim KALemleri
-    return_item_rows = db.execute("""
-      SELECT r.id AS return_id, r.ts, r.sale_id, si.title, ri.qty, ri.unit_price
-      FROM return_items ri
-      JOIN returns r       ON r.id = ri.return_id
-      JOIN sale_items si   ON si.id = ri.sale_item_id
-      JOIN sales s         ON s.id = si.sale_id
-      WHERE s.customer_id=?
-      ORDER BY ri.id DESC
-      LIMIT 500
-    """, (cid,)).fetchall()
-
-    summary = db.execute("""
-      SELECT COUNT(*) AS n_sales, COALESCE(SUM(total),0) AS total_sum
-      FROM sales WHERE customer_id=?
-    """, (cid,)).fetchone()
+    # Müşterinin toplam açık veresiye borcu
+    open_credit = db.execute("""
+        SELECT SUM(total_amount) 
+        FROM sales 
+        WHERE customer_id = ? 
+          AND payment_type = 'Veresiye' 
+          AND is_paid = 0
+    """, (customer_id,)).fetchone()[0] or 0
 
     return render_template(
-        'customer_history.html',
-        customer=cust,
+        "customer_history.html",
+        customer=customer,
         sales=sales,
-        sale_item_rows=sale_item_rows,
-        return_item_rows=return_item_rows,
-        summary=summary
+        returns=returns,
+        open_credit=open_credit
     )
 
 @app.route('/customer/<int:cid>/panel')

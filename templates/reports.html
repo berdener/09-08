@@ -14,3 +14,34 @@
     <div>Net: {{ '%.2f'|format((returns_month.net or 0) if returns_month else 0) }}</div>
   </div>
 </div>
+<!-- Günlük Ciro -->
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Günlük Ciro</h5>
+        <p class="card-text">{{ daily_sales | round(2) }} ₺</p>
+    </div>
+</div>
+
+<!-- Günlük Veresiye -->
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Bugün Veresiye</h5>
+        <p class="card-text">{{ daily_credit | round(2) }} ₺</p>
+    </div>
+</div>
+
+<!-- Aylık Ciro -->
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Aylık Ciro</h5>
+        <p class="card-text">{{ monthly_sales | round(2) }} ₺</p>
+    </div>
+</div>
+
+<!-- Aylık Veresiye -->
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Bu Ay Veresiye</h5>
+        <p class="card-text">{{ monthly_credit | round(2) }} ₺</p>
+    </div>
+</div>

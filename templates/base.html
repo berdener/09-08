@@ -2,9 +2,21 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>{% block title %}Müşteri Paneli{% endblock %}</title>
+    <title>{% block title %}POS Panel{% endblock %}</title>
 </head>
 <body>
-    {% block content %}{% endblock %}
+    <header>
+        <h1>POS Sistemi</h1>
+        <nav>
+            <a href="/pos">Satış</a> |
+            <a href="/customers">Müşteriler</a> |
+            <a href="/sales">Satışlar</a> |
+            <a href="/reports">Raporlar</a>
+        </nav>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
 </body>
 </html>
