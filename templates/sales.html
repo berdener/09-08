@@ -1,1 +1,45 @@
-<!doctype html><html lang='tr'><head><meta charset='utf-8'><title>Satışlar</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:system-ui,Arial;margin:24px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:8px}</style></head><body><h2>Son Satışlar</h2><table><tr><th>No</th><th>Tarih</th><th>Toplam</th><th>Ödeme</th></tr>{% for r in rows %}<tr><td>{{ r.id }}</td><td>{{ r.ts }}</td><td>{{ '%.2f'|format(r.total or 0) }}</td><td>{{ r.payment_method }}</td></tr>{% endfor %}{% if rows|length == 0 %}<tr><td colspan='4' style='text-align:center;color:#666'>Kayıt yok.</td></tr>{% endif %}</table><p><a href='/customer'>← Müşteri</a> | <a href='/pos'>Satış</a></p></body></html>
+<!doctype html><html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title>Satışlar</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font-family:system-ui,Arial;margin:16px}
+    table{border-collapse:collapse;width:100%;margin-top:10px}
+    td,th{border:1px solid #ddd;padding:8px;text-align:left}
+    a.button, button{padding:.4rem .6rem;border:1px solid #ccc;border-radius:8px;background:#f8f8f8;cursor:pointer;text-decoration:none;color:#222}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  </style>
+</head>
+<body>
+  <h2>Satışlar</h2>
+
+  <div class="row">
+    <a class="button" href="/pos">← POS</a>
+    <a class="button" href="/customers">Müşteriler</a>
+    <a class="button" href="/inventory">Stok</a>
+    <a class="button" href="/reports">Raporlar</a>
+  </div>
+
+  <table>
+    <tr>
+      <th>ID</th>
+      <th>Tarih</th>
+      <th>Toplam</th>
+      <th>Ödeme</th>
+      <th>İşlemler</th>
+    </tr>
+    {% for row in rows %}
+    <tr>
+      <td>#{{ row.id }}</td>
+      <td>{{ row.ts }}</td>
+      <td>{{ '%.2f'|format(row.total or 0) }}</td>
+      <td>{{ row.payment_method or '-' }}</td>
+      <td>
+        <a class="button" href="/return/{{ row.id }}">İade/Değişim</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</body>
+</html>

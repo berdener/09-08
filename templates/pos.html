@@ -11,6 +11,7 @@
     .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .gap{gap:12px}
     .note{color:#666;font-size:.9rem}
+    .button{padding:.4rem .6rem;border:1px solid #ccc;border-radius:8px;background:#f8f8f8;cursor:pointer;text-decoration:none;color:#222}
   </style>
   <script>
     let cart=[];
@@ -122,6 +123,13 @@
       document.getElementById('discount_amount').value='';
       redraw();
     }
+
+    // İade/Değişim: Satış No ile sayfaya git
+    function goReturn(){
+      const id = parseInt(document.getElementById('return_sale_id').value||'0',10);
+      if(!id){ alert('Satış No girin'); return; }
+      window.location.href = '/return/'+id;
+    }
   </script>
 </head>
 <body onload='redraw()'>
@@ -172,6 +180,14 @@
       <option value='transfer'>Havale</option>
     </select>
     <button onclick='checkout()'>Satışı Tamamla</button>
+  </div>
+
+  <!-- İade / Değişim bloğu -->
+  <h3>İade / Değişim</h3>
+  <div class="row">
+    <input id="return_sale_id" type="number" min="1" placeholder="Satış No">
+    <button onclick="goReturn()">İade/Değişim Aç</button>
+    <a class="button" href="/sales">Satış Listesi</a>
   </div>
 
   <p class="note">
