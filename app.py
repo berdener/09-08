@@ -396,8 +396,8 @@ def reports():
     db = get_db()
 
     # Günlük veriler
-    today = datetime.now().date()
-    daily_sales = db.execute("""
+    today = db.execute("SELECT DATE('now', 'localtime')").fetchone()[0]
+  daily_sales = db.execute("""
         SELECT SUM(total_amount) 
         FROM sales 
         WHERE DATE(sale_date) = ? AND payment_type != 'Veresiye'
