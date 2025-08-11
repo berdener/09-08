@@ -617,45 +617,71 @@ def nf(e):
 def customer_history(customer_id):
     db = get_db()
 
-    # Müşteri bilgisi
-    customer = db.execute("""
-        SELECT * FROM customers WHERE id = ?
+    customer = db.execute(
+        "SELECT id, name, phone, email, created_at FROM customers WHERE id=?",
+        (customer_id,)
+    ).fetchone()
+    if not customer:
+        flash("Müşteri bulunamadı.", "error")
+        return redirect(url_for('customers_list'))
+
+    # Satış başlıkları (ALIAS: ts -> sale_date, total -> total_amount, payment_method -> payment_type)
+    sales = db.execute("""
+        SELECT
+          id,
+          ts            AS sale_date,
+          total         AS total_amount,
+          payment_method AS payment_type
+        FROM sales
+        WHERE customer_id=?
+        ORDER BY ts DESC
+        LIMIT 200
+    """, (customer_id,)).fetchall()
+
+    # Satış kalemleri
+    sale_item_rows = db.execute("""
+      SELECT s.id AS sale_id, s.ts, si.title, si.qty, si.unit_price
+      FROM sale_items si
+      JOIN sales s ON s.id = si.sale_id
+      WHERE s.customer_id=?
+      ORDER BY si.id DESC
+      LIMIT 500
+    """, (customer_id,)).fetchall()
+
+    # İade/değişim kalemleri
+    return_item_rows = db.execute("""
+      SELECT r.id AS return_id, r.ts, r.sale_id, si.title, ri.qty, ri.unit_price
+      FROM return_items ri
+      JOIN returns r     ON r.id = ri.return_id
+      JOIN sale_items si ON si.id = ri.sale_item_id
+      JOIN sales s       ON s.id = si.sale_id
+      WHERE s.customer_id=?
+      ORDER BY ri.id DESC
+      LIMIT 500
+    """, (customer_id,)).fetchall()
+
+    # Özet + açık veresiye (borç) — veresiye satışların toplamı
+    summary = db.execute("""
+      SELECT COUNT(*) AS n_sales, COALESCE(SUM(total),0) AS total_sum
+      FROM sales WHERE customer_id=?
     """, (customer_id,)).fetchone()
 
-    if not customer:
-        flash("Müşteri bulunamadı.", "danger")
-        return redirect(url_for('customers'))
-
-    # Müşterinin satışları
-    sales = db.execute("""
-        SELECT * FROM sales
-        WHERE customer_id = ?
-        ORDER BY sale_date DESC
-    """, (customer_id,)).fetchall()
-
-    # Müşterinin iadeleri
-    returns = db.execute("""
-        SELECT * FROM returns
-        WHERE customer_id = ?
-        ORDER BY return_date DESC
-    """, (customer_id,)).fetchall()
-
-    # Müşterinin toplam açık veresiye borcu
-    open_credit = db.execute("""
-        SELECT SUM(total_amount) 
-        FROM sales 
-        WHERE customer_id = ? 
-          AND payment_type = 'Veresiye' 
-          AND is_paid = 0
-    """, (customer_id,)).fetchone()[0] or 0
+    outstanding_veresiye = db.execute("""
+      SELECT COALESCE(SUM(total),0) AS open_sum, COUNT(*) AS open_count
+      FROM sales
+      WHERE customer_id=? AND LOWER(COALESCE(payment_method,''))='veresiye'
+    """, (customer_id,)).fetchone()
 
     return render_template(
-        "customer_history.html",
+        'customer_history.html',
         customer=customer,
         sales=sales,
-        returns=returns,
-        open_credit=open_credit
+        sale_item_rows=sale_item_rows,
+        return_item_rows=return_item_rows,
+        summary=summary,
+        open_credit=(outstanding_veresiye['open_sum'] if outstanding_veresiye else 0)
     )
+
 
 @app.route('/customer/<int:cid>/panel')
 @login_required
