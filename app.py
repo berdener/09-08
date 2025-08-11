@@ -101,16 +101,6 @@ CREATE TABLE IF NOT EXISTS return_items (
   unit_price REAL         -- referans birim fiyat
 );
 """)
--- TAHSİLATLAR (müşteriden alınan ödemeler)
-CREATE TABLE IF NOT EXISTS payments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  ts TEXT DEFAULT (datetime('now','localtime')),
-  customer_id INTEGER,
-  amount REAL,
-  method TEXT,
-  notes TEXT
-);
-
     db.commit()
     db.close()
 
@@ -407,80 +397,63 @@ def reports():
         return redirect(url_for('login'))
     db = get_db()
 
-    # Satış cirosu: VERESİYE HARİÇ
-    daily_sales = db.execute("""
-      SELECT COALESCE(SUM(total),0) AS t
+    # Ciro: VERESİYE HARİÇ
+    daily = db.execute("""
+      SELECT SUM(total) t
       FROM sales
       WHERE date(ts)=date('now','localtime')
         AND LOWER(COALESCE(payment_method,''))!='veresiye'
-    """).fetchone()['t']
+    """).fetchone()
 
-    monthly_sales = db.execute("""
-      SELECT COALESCE(SUM(total),0) AS t
+    monthly = db.execute("""
+      SELECT SUM(total) t
       FROM sales
       WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
         AND LOWER(COALESCE(payment_method,''))!='veresiye'
-    """).fetchone()['t']
+    """).fetchone()
 
-    # Tahsilatlar (payments): ciroya eklenir
-    daily_payments = db.execute("""
-      SELECT COALESCE(SUM(amount),0) AS p
-      FROM payments
-      WHERE date(ts)=date('now','localtime')
-    """).fetchone()['p']
-
-    monthly_payments = db.execute("""
-      SELECT COALESCE(SUM(amount),0) AS p
-      FROM payments
-      WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
-    """).fetchone()['p']
-
-    # Veresiye toplamları (bilgi amaçlı)
+    # Bilgi amaçlı veresiye toplamları
     v_today = db.execute("""
-      SELECT COALESCE(SUM(total),0) AS v
+      SELECT COALESCE(SUM(total),0) v
       FROM sales
       WHERE date(ts)=date('now','localtime')
         AND LOWER(COALESCE(payment_method,''))='veresiye'
-    """).fetchone()['v']
+    """).fetchone()
 
     v_month = db.execute("""
-      SELECT COALESCE(SUM(total),0) AS v
+      SELECT COALESCE(SUM(total),0) v
       FROM sales
       WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
         AND LOWER(COALESCE(payment_method,''))='veresiye'
-    """).fetchone()['v']
+    """).fetchone()
 
-    # İade/Değişim özetleri
+    # İade özetleri (returns)
     ret_today = db.execute("""
-      SELECT COALESCE(SUM(refund),0)            AS refund,
-             COALESCE(SUM(additional_charge),0) AS additional,
-             COALESCE(SUM(net),0)               AS net
+      SELECT 
+        COALESCE(SUM(refund),0)            AS refund,
+        COALESCE(SUM(additional_charge),0) AS additional,
+        COALESCE(SUM(net),0)               AS net
       FROM returns
       WHERE date(ts)=date('now','localtime')
     """).fetchone()
 
     ret_month = db.execute("""
-      SELECT COALESCE(SUM(refund),0)            AS refund,
-             COALESCE(SUM(additional_charge),0) AS additional,
-             COALESCE(SUM(net),0)               AS net
+      SELECT 
+        COALESCE(SUM(refund),0)            AS refund,
+        COALESCE(SUM(additional_charge),0) AS additional,
+        COALESCE(SUM(net),0)               AS net
       FROM returns
       WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
     """).fetchone()
 
-    # Nihai ciro = (veresiye HARİÇ satış) + (tahsilatlar)
-    daily_total   = (daily_sales or 0)   + (daily_payments or 0)
-    monthly_total = (monthly_sales or 0) + (monthly_payments or 0)
-
     return render_template(
         'reports.html',
-        daily_total=daily_total,
-        monthly_total=monthly_total,
-        veresiye_today=v_today or 0,
-        veresiye_month=v_month or 0,
+        daily_total=(daily['t'] if daily and daily['t'] else 0),
+        monthly_total=(monthly['t'] if monthly and monthly['t'] else 0),
+        veresiye_today=(v_today['v'] if v_today else 0),
+        veresiye_month=(v_month['v'] if v_month else 0),
         returns_today=ret_today,
-        returns_month=ret_month,
-        daily_payments=daily_payments or 0,
-        monthly_payments=monthly_payments or 0
+        returns_month=ret_month
     )
 
 @app.route('/sales')
@@ -655,29 +628,6 @@ def api_return():
             'additional_charge': additional_charge
         }
     })
-@app.route('/api/payment', methods=['POST'])
-def api_payment():
-    if not session.get('logged_in'):
-        return jsonify({'ok': False, 'error': 'Auth'}), 401
-
-    body = request.get_json(silent=True) or {}
-    customer_id = int(body.get('customer_id') or 0)
-    amount = float(body.get('amount') or 0)
-    method = (body.get('method') or 'cash').strip()
-    notes  = (body.get('notes')  or '').strip()
-
-    if not customer_id:
-        return jsonify({'ok': False, 'error': 'customer_id gerekli'}), 400
-    if amount <= 0:
-        return jsonify({'ok': False, 'error': 'amount > 0 olmalı'}), 400
-
-    db = get_db()
-    db.execute(
-        "INSERT INTO payments (customer_id, amount, method, notes) VALUES (?,?,?,?)",
-        (customer_id, amount, method, notes)
-    )
-    db.commit()
-    return jsonify({'ok': True})
 
 # ----------------------- Root & Errors -----------------------
 @app.route('/')
@@ -746,22 +696,6 @@ def customer_history(customer_id):
       FROM sales
       WHERE customer_id=? AND LOWER(COALESCE(payment_method,''))='veresiye'
     """, (customer_id,)).fetchone()
-# Veresiye satışların toplamı
-veresiye_sum = db.execute("""
-  SELECT COALESCE(SUM(total),0) AS s
-  FROM sales
-  WHERE customer_id=? AND LOWER(COALESCE(payment_method,''))='veresiye'
-""", (customer_id,)).fetchone()['s']
-
-# Müşteriden alınan tahsilatlar toplamı
-payments_sum = db.execute("""
-  SELECT COALESCE(SUM(amount),0) AS p
-  FROM payments
-  WHERE customer_id=?
-""", (customer_id,)).fetchone()['p']
-
-# Açık borç = veresiye - tahsilatlar
-open_credit = max(0.0, (veresiye_sum or 0) - (payments_sum or 0))
 
     return render_template(
         'customer_history.html',
