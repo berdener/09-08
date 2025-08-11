@@ -5,6 +5,8 @@
     <div><b>Günlük Ciro (veresiye hariç)</b></div>
     <div>{{ '%.2f'|format(daily_total or 0) }}</div>
   </div>
+<p>Bugün Tahsilat: {{ '%.2f'|format(daily_payments or 0) }} ₺</p>
+<p>Bu Ay Tahsilat: {{ '%.2f'|format(monthly_payments or 0) }} ₺</p>
 
   <div style="border:1px solid #eee; padding:10px; border-radius:8px">
     <div><b>Aylık Ciro (veresiye hariç)</b></div>

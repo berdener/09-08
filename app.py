@@ -101,6 +101,16 @@ CREATE TABLE IF NOT EXISTS return_items (
   unit_price REAL         -- referans birim fiyat
 );
 """)
+-- TAHSİLATLAR (müşteriden alınan ödemeler)
+CREATE TABLE IF NOT EXISTS payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts TEXT DEFAULT (datetime('now','localtime')),
+  customer_id INTEGER,
+  amount REAL,
+  method TEXT,
+  notes TEXT
+);
+
     db.commit()
     db.close()
 
@@ -628,6 +638,29 @@ def api_return():
             'additional_charge': additional_charge
         }
     })
+@app.route('/api/payment', methods=['POST'])
+def api_payment():
+    if not session.get('logged_in'):
+        return jsonify({'ok': False, 'error': 'Auth'}), 401
+
+    body = request.get_json(silent=True) or {}
+    customer_id = int(body.get('customer_id') or 0)
+    amount = float(body.get('amount') or 0)
+    method = (body.get('method') or 'cash').strip()
+    notes  = (body.get('notes')  or '').strip()
+
+    if not customer_id:
+        return jsonify({'ok': False, 'error': 'customer_id gerekli'}), 400
+    if amount <= 0:
+        return jsonify({'ok': False, 'error': 'amount > 0 olmalı'}), 400
+
+    db = get_db()
+    db.execute(
+        "INSERT INTO payments (customer_id, amount, method, notes) VALUES (?,?,?,?)",
+        (customer_id, amount, method, notes)
+    )
+    db.commit()
+    return jsonify({'ok': True})
 
 # ----------------------- Root & Errors -----------------------
 @app.route('/')
@@ -696,6 +729,22 @@ def customer_history(customer_id):
       FROM sales
       WHERE customer_id=? AND LOWER(COALESCE(payment_method,''))='veresiye'
     """, (customer_id,)).fetchone()
+# Veresiye satışların toplamı
+veresiye_sum = db.execute("""
+  SELECT COALESCE(SUM(total),0) AS s
+  FROM sales
+  WHERE customer_id=? AND LOWER(COALESCE(payment_method,''))='veresiye'
+""", (customer_id,)).fetchone()['s']
+
+# Müşteriden alınan tahsilatlar toplamı
+payments_sum = db.execute("""
+  SELECT COALESCE(SUM(amount),0) AS p
+  FROM payments
+  WHERE customer_id=?
+""", (customer_id,)).fetchone()['p']
+
+# Açık borç = veresiye - tahsilatlar
+open_credit = max(0.0, (veresiye_sum or 0) - (payments_sum or 0))
 
     return render_template(
         'customer_history.html',
