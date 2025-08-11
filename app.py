@@ -392,44 +392,68 @@ def inventory():
     return render_template('inventory.html', variants=variants)
 
 @app.route('/reports')
-@login_required
 def reports():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
     db = get_db()
 
-    # Günlük veriler
-    today = db.execute("SELECT DATE('now', 'localtime')").fetchone()[0]
-  daily_sales = db.execute("""
-        SELECT SUM(total_amount) 
-        FROM sales 
-        WHERE DATE(sale_date) = ? AND payment_type != 'Veresiye'
-    """, (today,)).fetchone()[0] or 0
+    # Ciro: VERESİYE HARİÇ
+    daily = db.execute("""
+      SELECT SUM(total) t
+      FROM sales
+      WHERE date(ts)=date('now','localtime')
+        AND LOWER(COALESCE(payment_method,''))!='veresiye'
+    """).fetchone()
 
-    daily_credit = db.execute("""
-        SELECT SUM(total_amount) 
-        FROM sales 
-        WHERE DATE(sale_date) = ? AND payment_type = 'Veresiye'
-    """, (today,)).fetchone()[0] or 0
+    monthly = db.execute("""
+      SELECT SUM(total) t
+      FROM sales
+      WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
+        AND LOWER(COALESCE(payment_method,''))!='veresiye'
+    """).fetchone()
 
-    # Aylık veriler
-    first_day_month = today.replace(day=1)
-    monthly_sales = db.execute("""
-        SELECT SUM(total_amount) 
-        FROM sales 
-        WHERE DATE(sale_date) >= ? AND payment_type != 'Veresiye'
-    """, (first_day_month,)).fetchone()[0] or 0
+    # Bilgi amaçlı veresiye toplamları
+    v_today = db.execute("""
+      SELECT COALESCE(SUM(total),0) v
+      FROM sales
+      WHERE date(ts)=date('now','localtime')
+        AND LOWER(COALESCE(payment_method,''))='veresiye'
+    """).fetchone()
 
-    monthly_credit = db.execute("""
-        SELECT SUM(total_amount) 
-        FROM sales 
-        WHERE DATE(sale_date) >= ? AND payment_type = 'Veresiye'
-    """, (first_day_month,)).fetchone()[0] or 0
+    v_month = db.execute("""
+      SELECT COALESCE(SUM(total),0) v
+      FROM sales
+      WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
+        AND LOWER(COALESCE(payment_method,''))='veresiye'
+    """).fetchone()
+
+    # İade özetleri (returns)
+    ret_today = db.execute("""
+      SELECT 
+        COALESCE(SUM(refund),0)            AS refund,
+        COALESCE(SUM(additional_charge),0) AS additional,
+        COALESCE(SUM(net),0)               AS net
+      FROM returns
+      WHERE date(ts)=date('now','localtime')
+    """).fetchone()
+
+    ret_month = db.execute("""
+      SELECT 
+        COALESCE(SUM(refund),0)            AS refund,
+        COALESCE(SUM(additional_charge),0) AS additional,
+        COALESCE(SUM(net),0)               AS net
+      FROM returns
+      WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
+    """).fetchone()
 
     return render_template(
         'reports.html',
-        daily_sales=daily_sales,
-        daily_credit=daily_credit,
-        monthly_sales=monthly_sales,
-        monthly_credit=monthly_credit
+        daily_total=(daily['t'] if daily and daily['t'] else 0),
+        monthly_total=(monthly['t'] if monthly and monthly['t'] else 0),
+        veresiye_today=(v_today['v'] if v_today else 0),
+        veresiye_month=(v_month['v'] if v_month else 0),
+        returns_today=ret_today,
+        returns_month=ret_month
     )
 
 @app.route('/sales')

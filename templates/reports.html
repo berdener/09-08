@@ -1,47 +1,35 @@
-<!doctype html><html lang='tr'><head><meta charset='utf-8'><title>Raporlar</title><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:system-ui,Arial;margin:24px}.card{border:1px solid #ddd;border-radius:12px;padding:16px;margin-bottom:16px}</style></head><body><h2>Raporlar</h2><div class='card'><b>Günlük Ciro:</b> {{ '%.2f'|format(daily_total) }}</div><div class='card'><b>Aylık Ciro:</b> {{ '%.2f'|format(monthly_total) }}</div><p><a href='/customer'>← Müşteri</a> | <a href='/pos'>Satış</a> | <a href='/inventory'>Stok</a></p></body></html>
-<h3>İade Özeti</h3>
-<div style="display:flex;gap:16px;flex-wrap:wrap">
-  <div style="border:1px solid #eee;padding:10px;border-radius:8px">
-    <div><b>Bugün</b></div>
-    <div>Refund: {{ '%.2f'|format((returns_today.refund or 0) if returns_today else 0) }}</div>
-    <div>Tahsil: {{ '%.2f'|format((returns_today.additional or 0) if returns_today else 0) }}</div>
-    <div>Net: {{ '%.2f'|format((returns_today.net or 0) if returns_today else 0) }}</div>
+<h2>Raporlar</h2>
+
+<div style="display:flex; gap:16px; flex-wrap:wrap">
+  <div style="border:1px solid #eee; padding:10px; border-radius:8px">
+    <div><b>Günlük Ciro (veresiye hariç)</b></div>
+    <div>{{ '%.2f'|format(daily_total or 0) }}</div>
   </div>
-  <div style="border:1px solid #eee;padding:10px;border-radius:8px">
-    <div><b>Bu Ay</b></div>
-    <div>Refund: {{ '%.2f'|format((returns_month.refund or 0) if returns_month else 0) }}</div>
-    <div>Tahsil: {{ '%.2f'|format((returns_month.additional or 0) if returns_month else 0) }}</div>
-    <div>Net: {{ '%.2f'|format((returns_month.net or 0) if returns_month else 0) }}</div>
+
+  <div style="border:1px solid #eee; padding:10px; border-radius:8px">
+    <div><b>Aylık Ciro (veresiye hariç)</b></div>
+    <div>{{ '%.2f'|format(monthly_total or 0) }}</div>
+  </div>
+
+  <div style="border:1px solid #eee; padding:10px; border-radius:8px">
+    <div><b>Bugün Veresiye</b></div>
+    <div>{{ '%.2f'|format(veresiye_today or 0) }}</div>
+  </div>
+
+  <div style="border:1px solid #eee; padding:10px; border-radius:8px">
+    <div><b>Bu Ay Veresiye</b></div>
+    <div>{{ '%.2f'|format(veresiye_month or 0) }}</div>
   </div>
 </div>
-<!-- Günlük Ciro -->
-<div class="card">
-    <div class="card-body">
-        <h5 class="card-title">Günlük Ciro</h5>
-        <p class="card-text">{{ daily_sales | round(2) }} ₺</p>
-    </div>
-</div>
 
-<!-- Günlük Veresiye -->
-<div class="card">
-    <div class="card-body">
-        <h5 class="card-title">Bugün Veresiye</h5>
-        <p class="card-text">{{ daily_credit | round(2) }} ₺</p>
-    </div>
-</div>
-
-<!-- Aylık Ciro -->
-<div class="card">
-    <div class="card-body">
-        <h5 class="card-title">Aylık Ciro</h5>
-        <p class="card-text">{{ monthly_sales | round(2) }} ₺</p>
-    </div>
-</div>
-
-<!-- Aylık Veresiye -->
-<div class="card">
-    <div class="card-body">
-        <h5 class="card-title">Bu Ay Veresiye</h5>
-        <p class="card-text">{{ monthly_credit | round(2) }} ₺</p>
-    </div>
-</div>
+<h3>İade / Değişim Özeti</h3>
+<ul>
+  <li>Bugün Net: {{ '%.2f'|format((returns_today.net if returns_today else 0) or 0) }}</li>
+  <li>Bugün İade: {{ '%.2f'|format((returns_today.refund if returns_today else 0) or 0) }}</li>
+  <li>Bugün Tahsil: {{ '%.2f'|format((returns_today.additional if returns_today else 0) or 0) }}</li>
+</ul>
+<ul>
+  <li>Bu Ay Net: {{ '%.2f'|format((returns_month.net if returns_month else 0) or 0) }}</li>
+  <li>Bu Ay İade: {{ '%.2f'|format((returns_month.refund if returns_month else 0) or 0) }}</li>
+  <li>Bu Ay Tahsil: {{ '%.2f'|format((returns_month.additional if returns_month else 0) or 0) }}</li>
+</ul>
