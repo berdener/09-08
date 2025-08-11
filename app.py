@@ -407,63 +407,80 @@ def reports():
         return redirect(url_for('login'))
     db = get_db()
 
-    # Ciro: VERESİYE HARİÇ
-    daily = db.execute("""
-      SELECT SUM(total) t
+    # Satış cirosu: VERESİYE HARİÇ
+    daily_sales = db.execute("""
+      SELECT COALESCE(SUM(total),0) AS t
       FROM sales
       WHERE date(ts)=date('now','localtime')
         AND LOWER(COALESCE(payment_method,''))!='veresiye'
-    """).fetchone()
+    """).fetchone()['t']
 
-    monthly = db.execute("""
-      SELECT SUM(total) t
+    monthly_sales = db.execute("""
+      SELECT COALESCE(SUM(total),0) AS t
       FROM sales
       WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
         AND LOWER(COALESCE(payment_method,''))!='veresiye'
-    """).fetchone()
+    """).fetchone()['t']
 
-    # Bilgi amaçlı veresiye toplamları
+    # Tahsilatlar (payments): ciroya eklenir
+    daily_payments = db.execute("""
+      SELECT COALESCE(SUM(amount),0) AS p
+      FROM payments
+      WHERE date(ts)=date('now','localtime')
+    """).fetchone()['p']
+
+    monthly_payments = db.execute("""
+      SELECT COALESCE(SUM(amount),0) AS p
+      FROM payments
+      WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
+    """).fetchone()['p']
+
+    # Veresiye toplamları (bilgi amaçlı)
     v_today = db.execute("""
-      SELECT COALESCE(SUM(total),0) v
+      SELECT COALESCE(SUM(total),0) AS v
       FROM sales
       WHERE date(ts)=date('now','localtime')
         AND LOWER(COALESCE(payment_method,''))='veresiye'
-    """).fetchone()
+    """).fetchone()['v']
 
     v_month = db.execute("""
-      SELECT COALESCE(SUM(total),0) v
+      SELECT COALESCE(SUM(total),0) AS v
       FROM sales
       WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
         AND LOWER(COALESCE(payment_method,''))='veresiye'
-    """).fetchone()
+    """).fetchone()['v']
 
-    # İade özetleri (returns)
+    # İade/Değişim özetleri
     ret_today = db.execute("""
-      SELECT 
-        COALESCE(SUM(refund),0)            AS refund,
-        COALESCE(SUM(additional_charge),0) AS additional,
-        COALESCE(SUM(net),0)               AS net
+      SELECT COALESCE(SUM(refund),0)            AS refund,
+             COALESCE(SUM(additional_charge),0) AS additional,
+             COALESCE(SUM(net),0)               AS net
       FROM returns
       WHERE date(ts)=date('now','localtime')
     """).fetchone()
 
     ret_month = db.execute("""
-      SELECT 
-        COALESCE(SUM(refund),0)            AS refund,
-        COALESCE(SUM(additional_charge),0) AS additional,
-        COALESCE(SUM(net),0)               AS net
+      SELECT COALESCE(SUM(refund),0)            AS refund,
+             COALESCE(SUM(additional_charge),0) AS additional,
+             COALESCE(SUM(net),0)               AS net
       FROM returns
       WHERE strftime('%Y-%m', ts)=strftime('%Y-%m','now','localtime')
     """).fetchone()
 
+    # Nihai ciro = (veresiye HARİÇ satış) + (tahsilatlar)
+    daily_total   = (daily_sales or 0)   + (daily_payments or 0)
+    monthly_total = (monthly_sales or 0) + (monthly_payments or 0)
+
     return render_template(
         'reports.html',
-        daily_total=(daily['t'] if daily and daily['t'] else 0),
-        monthly_total=(monthly['t'] if monthly and monthly['t'] else 0),
-        veresiye_today=(v_today['v'] if v_today else 0),
-        veresiye_month=(v_month['v'] if v_month else 0),
+        daily_total=daily_total,
+        monthly_total=monthly_total,
+        veresiye_today=v_today or 0,
+        veresiye_month=v_month or 0,
         returns_today=ret_today,
-        returns_month=ret_month
+        returns_month=ret_month,
+        daily_payments=daily_payments or 0,
+        monthly_payments=monthly_payments or 0
     )
 
 @app.route('/sales')
